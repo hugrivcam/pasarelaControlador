@@ -1,0 +1,31 @@
+{
+  "profiles": {
+    "pasarelaControlador": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "launchUrl": "swagger",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "HTTPS://LOCALHOST:27001"
+      },
+      "dotnetRunMessages": true,
+      "applicationUrl": "https://localhost:27001;http://localhost:5078"
+    },
+    "IIS Express": {
+      "commandName": "IISExpress",
+      "launchBrowser": true,
+      "launchUrl": "swagger",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  },
+  "iisSettings": {
+    "windowsAuthentication": false,
+    "anonymousAuthentication": true,
+    "iisExpress": {
+      "applicationUrl": "http://localhost:64817/",
+      "sslPort": 44352
+    }
+  }
+}
