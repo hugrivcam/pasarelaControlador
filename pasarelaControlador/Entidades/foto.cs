@@ -1,6 +1,6 @@
 ﻿namespace pasarelaControlador.Entidades
 {
-    public class foto
+    public class Foto
     {
         public int Id { get; set; } //cada dia empieza desde 1
         public string? RutaFile { get; set; } //ruta completa con el nombre del fichero

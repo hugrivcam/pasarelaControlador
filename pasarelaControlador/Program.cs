@@ -9,7 +9,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddSingleton<ServicioControlProcesos>();
-
+builder.Services.AddSingleton<ServicioCamara>();
 var app = builder.Build();
 
 //Thread HiloCamara = new Thread(MiHilo);
