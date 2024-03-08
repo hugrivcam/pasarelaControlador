@@ -1,9 +1,9 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿//using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using pasarelaControlador.Entidades;
+//using pasarelaControlador.Entidades;
 using pasarelaControlador.EntidadesJSON;
 using pasarelaControlador.Servicios;
-using System.ComponentModel;
+//using System.ComponentModel;
 
 namespace pasarelaControlador.Controllers
 {
@@ -35,11 +35,12 @@ namespace pasarelaControlador.Controllers
             else
                 return BadRequest(res); //status code 400
         }
-        //hacer foto y devolver id_foto
+        //hacer foto y devolver datos básicos de la foto que puedo descargar
         [HttpGet("MakePhoto")]
         public async Task<ActionResult<FotoJSON>> MakePhoto()
         {
-            var res = await Task.Run(() => _servicioCamara.HacerFoto());
+            //var res = await Task.Run(() => _servicioCamara.HacerFoto());
+            var res = await _servicioCamara.HacerFoto();
             if (res >= 0)
             {
                 var fotoJSON = _servicioCamara.GetLastFotoJSON();

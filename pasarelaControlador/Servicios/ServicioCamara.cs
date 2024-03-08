@@ -22,8 +22,11 @@ namespace pasarelaControlador.Servicios
         private FilterInfoCollection? MisCamaras;// carga dispositivos carga las camaras
         private List<string>? ListaCamaras; //carga dispositivos llena una lista con los nombres de las camaras
         private List<Camara>? ListaCamarasObj;
-        private Camara? CamaraActual = null; 
-        
+        private Camara? CamaraActual = null;
+        private bool CanStopCamera=true;
+        private bool SeñalApagadoCamara=false;
+        private bool CamaraEncendida=false;
+        private bool ActivandoCamara = false;
         //private int? CamaraSeleccionadaIndice=-1;
         //private string? CamaraSeleccionadaNombre;
         //private string? CamaraMonikerString;
@@ -133,19 +136,23 @@ namespace pasarelaControlador.Servicios
             CamaraJSON camaraJson = new();
             try
             {
-                SeleccionarCamara(indiceCamara);//la camara anterior se cierra al seleccionar una nueva
+                ActivandoCamara = true;
+                SeleccionarCamara(indiceCamara);//CamaraActual obtiene valor aqui distinto de null; la camara anterior se cierra al seleccionar una nueva, al cerrar la camara anterior la señalApagadoCamara = true
+                SeñalApagadoCamara = false;
                 WebCam = new VideoCaptureDevice(CamaraActual.MonikerName);
                 WebCam.NewFrame += new NewFrameEventHandler(GrabarCamara);//la camara queda encendida y se pone en modo grabación, preparada para obtener cualquier imagen en cualquier momento
                 WebCam.Start();
                 camaraJson.Name = CamaraActual.Name;
                 camaraJson.Id = CamaraActual.Id;
-                
+                ActivandoCamara = false;
+                CamaraEncendida = true;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine(ex.Message);
                 camaraJson.Name = "Camara no seleccionada";
                 camaraJson.Id = -1;
+                CamaraEncendida = false;
             }
             return camaraJson;
         }
@@ -158,10 +165,12 @@ namespace pasarelaControlador.Servicios
         private async Task<bool> CerrarWebCam() //se llama desde apagarCamaraActual
         {
             
+            this.SeñalApagadoCamara = true;
             VideoCaptureDevice miWebCam = this.WebCam;
-            if (WebCam != null && WebCam.IsRunning)
+            if (WebCam != null && WebCam.IsRunning && CanStopCamera)
             {
                 WebCam.SignalToStop();
+                WebCam.NewFrame -= new NewFrameEventHandler(GrabarCamara);
                 WebCam = null;
                 Task waitToStop = Task.Run(() =>
                 {
@@ -171,56 +180,79 @@ namespace pasarelaControlador.Servicios
                         c++;
                     }
                 });
-                await waitToStop; //parecido a JS,  creamos una funcion Task lambda y la llamamos con await, así el bucle queda parado en un hilo secundario.
+                await waitToStop;
+                CamaraActual = null; //parecido a JS,  creamos una funcion Task lambda y la llamamos con await, así el bucle queda parado en un hilo secundario.
+                CamaraEncendida = false;
                 return true;//indicamos que la camara se ha cerrado correctamente
             }
             return true;// Si la cámara no está en funcionamiento, considerarla como cerrada
 
         }
 
-        public int HacerFoto()
+        public async Task<int> HacerFoto()
         {
             try
             {
-                if (CamaraActual != null)
+                if (!SeñalApagadoCamara) //si la camara se está apagando no se hace foto
                 {
-                    HaciendoFoto();
-                    return this.GetLastFotoIndex(); //"Ok Foto";
+                    //if (CamaraActual != null)
+                    if (!CamaraEncendida && this.ActivandoCamara) 
+                    {
+                        while (this.ActivandoCamara)
+                        {
+                            await Task.Delay(100);
+                        }
+                    }
+                    if(CamaraEncendida)
+                    {
+                        CanStopCamera = false;//si se está haciendo la foto y llega la solicitud de apagado de camara, evitamos que la camara se apague mientras se hace la foto
+                        HaciendoFoto();
+                        CanStopCamera = true;
+                        return this.GetLastFotoIndex(); //"Ok Foto";
+                    }
+                    else
+                    {
+                        return -1; //no se puede hacer  una foto
+                    }
                 }
-                else 
-                {
-                    return -1; //no se puede hacer  una foto
-                }
+                else
+                    return -1;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine(ex.Message);
                 return -1; //"Fallo Foto: " + ex.Message;
             }
-
         }
         private void HaciendoFoto() //evento hacer foto
         {
             //Bitmap img = (Bitmap)eventArgs.Frame.Clone();//genero unea nueva imgagen
             //WebCam.Stop();//obtengo la imagen y paro la grabación si no estaría generando imagenes constantemente.
-            Bitmap img = ImagenActual;
-            Foto f = new();
-            string fechaHora = DateTime.Now.ToString("yyyyMMdd_hhmmss");
-            string fechaActual = DateTime.Now.ToString("yyyyMMdd");
-            string rutaCompleta = this.PathCamara + fechaActual + "\\";
-            ComprobarIdDia();//asigna un valor válido a IdFotoActual
-            string fname = this.IdFotoActual.ToString("0000") + "_" + this.CamaraActual.Name + "_" + fechaHora + ".jpg";
-            f.Id = IdFotoActual;
-            f.Ruta = rutaCompleta;
-            f.RutaFile = rutaCompleta + fname;
-            f.Date = DateTime.Now;
-            f.FileName = fname;
-            if (!Directory.Exists(f.Ruta))
-            { 
-                Directory.CreateDirectory(f.Ruta);
-            } 
-            img.Save(f.RutaFile,ImageFormat.Jpeg); //guardo la imagen en disco
-            ListaFotosTomadas.Add(f); //añado la imagen a la lista de fotos tomadas mientras el servicio está activo
+            try
+            {
+                Bitmap img = ImagenActual;
+                Foto f = new();
+                string fechaHora = DateTime.Now.ToString("yyyyMMdd_hhmmss");
+                string fechaActual = DateTime.Now.ToString("yyyyMMdd");
+                string rutaCompleta = this.PathCamara + fechaActual + "\\";
+                ComprobarIdDia();//asigna un valor válido a IdFotoActual
+                string fname = this.IdFotoActual.ToString("0000") + "_" + this.CamaraActual.Name + "_" + fechaHora + ".jpg";
+                f.Id = IdFotoActual;
+                f.Ruta = rutaCompleta;
+                f.RutaFile = rutaCompleta + fname;
+                f.Date = DateTime.Now;
+                f.FileName = fname;
+                if (!Directory.Exists(f.Ruta))
+                {
+                    Directory.CreateDirectory(f.Ruta);
+                }
+                img.Save(f.RutaFile, ImageFormat.Jpeg); //guardo la imagen en disco
+                ListaFotosTomadas.Add(f); //añado la imagen a la lista de fotos tomadas mientras el servicio está activo
+            }
+            catch(Exception ex) 
+            {
+                Debug.WriteLine("Error en Haciendo Foto: " + ex.Message);
+            }
         }
         //pte lista camaras
         private void ComprobarIdDia() //cada fichero tiene un id nuevo segun el dia, cada dia el id vuelve a 1 y el fichero se genera en una carpeta nueva
@@ -237,6 +269,7 @@ namespace pasarelaControlador.Servicios
         }
         ~ServicioCamara() //destructor
         {
+            CanStopCamera = true;
             CerrarWebCam();
         }
         public int GetTotalFotos() 
@@ -279,7 +312,8 @@ namespace pasarelaControlador.Servicios
         {
             if (GetTotalFotos() > 0)
             {
-                return ListaFotosTomadas[ixFoto - 1];
+                //return ListaFotosTomadas[ixFoto - 1];
+                return ListaFotosTomadas.Find((f) => f.Id == ixFoto);//obtengo los datos de la ultima foto tomada
             }
             else return null;
         }
@@ -288,7 +322,6 @@ namespace pasarelaControlador.Servicios
             int c = GetTotalFotos();
             if (c > 0)
             {
-
                 return ListaFotosTomadas[c - 1];//obtengo los datos de la ultima foto tomada
             }
             else return null;
